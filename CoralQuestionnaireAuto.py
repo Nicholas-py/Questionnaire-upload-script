@@ -36,49 +36,53 @@ else:
 
 client = WebClient(token = slacktoken)
 
-response = client.conversations_history(
-    channel=qchannel,
-    limit=999,
-    oldest=dt.timestamp(),
-    latest= dt2.timestamp()
-)
+def getqs():
+    response = client.conversations_history(
+        channel=qchannel,
+        limit=999,
+        oldest=dt.timestamp(),
+        latest= dt2.timestamp()
+    )
 
-messages = response.data['messages']
-print('There have been', len(messages),'since',pdate(dt))
-#ts = ((messages[-1]['ts']))  
-#print(datetime.fromtimestamp(float(ts)))
+    messages = response.data['messages']
+    print('There have been', len(messages),'since',pdate(dt))
+    #ts = ((messages[-1]['ts']))  
+    #print(datetime.fromtimestamp(float(ts)))
 
-questionnaires = []
-reacts = set()
+    questionnaires = []
+    reacts = set()
 
-for i1,message in enumerate((messages[::-1])):
-    complete = False
-    if 'reactions' in message:
-        for reaction in message['reactions']:
-            reacts.add(reaction['name'])
-            if reaction['name'] in ['white_check_mark','x']:
-                #print(f'➖ - #{i1+1}, {pdate(datetime.fromtimestamp(float(message['ts'])))} - already completed')
-                complete = True
-    if complete:
-        continue
-    
-    #99% of these are <@member> has joined the channel, so skip them
-    if 'blocks' not in message:
-        continue
-    if message['text'][0:10] != 'A member s':
-        continue
-    
-    try:
-        lst = (message['blocks'][1]['text']['text'].split('\n:page_facing_up: <https://coralhealth.app/members/'))
-    except:
-        print(message['text'])
-    memid = lst[0].split('\n:bust_in_silhouette: <https://coralhealth.app/members/')[1].split('|*')[0]
-    responseid = lst[1].split('responses/')[1].split('|*R')[0]
-    date = datetime.fromtimestamp(float(message['ts']))
-    questionnaires.append((i1+1,date,memid,responseid))
+    for i1,message in enumerate((messages[::-1])):
+        complete = False
+        if 'reactions' in message:
+            for reaction in message['reactions']:
+                reacts.add(reaction['name'])
+                if reaction['name'] in ['white_check_mark','x']:
+                    #print(f'➖ - #{i1+1}, {pdate(datetime.fromtimestamp(float(message['ts'])))} - already completed')
+                    complete = True
+        if complete:
+            continue
+        
+        #99% of these are <@member> has joined the channel, so skip them
+        if 'blocks' not in message:
+            continue
+        if message['text'][0:10] != 'A member s':
+            continue
+        
+        try:
+            lst = (message['blocks'][1]['text']['text'].split('\n:page_facing_up: <https://coralhealth.app/members/'))
+        except:
+            print(message['text'])
+        memid = lst[0].split('\n:bust_in_silhouette: <https://coralhealth.app/members/')[1].split('|*')[0]
+        responseid = lst[1].split('responses/')[1].split('|*R')[0]
+        date = datetime.fromtimestamp(float(message['ts']))
+        questionnaires.append((i1+1,date,memid,responseid))
 
 
 
+
+    return questionnaires
+questionnaires = getqs()
 
 print('Found', len(questionnaires),'questionnaires uncompleted. Preparing...')
 
@@ -319,19 +323,31 @@ def gothrough(questionnaires, manual=False):
         files.remove(abspath)
     return failures
 
-manual = 'y' in input('Would you like to enter member\'s names manually? (Use this if you got a "no/two member(s) with this name found" error last time) ')
-print()
-if manual:
-    print("You are in manual mode. When searching MYLE, the script will pause and wait for you to enter the page of the correct member. If there are two with the same name, check the Coral tab to find the birthdate and find the correct member based on that. When finished, return to the script and hit enter.")
-    input('[enter to continue]')
+while True:
+    manual = 'y' in input('Would you like to enter member\'s names manually? (Use this if you got a "no/two member(s) with this name found" error last time) ')
+    print()
+    if manual:
+        print("You are in manual mode. When searching MYLE, the script will pause and wait for you to enter the page of the correct member. If there are two with the same name, check the Coral tab to find the birthdate and find the correct member based on that. When finished, return to the script and hit enter.")
+        input('[enter to continue]')
 
 
-failures = gothrough(questionnaires, manual)
+    failures = gothrough(questionnaires, manual)
 
 
-print('Finished! ')
-print(f'There were {len(failures)} failures (/{len(questionnaires)})')
-print('If some failed, run the script again (possibly in manual mode) or message Nicholas Waslander for assistance.')
-print('To mark a questionnaire not to be completed by the bot, react :x: to it on slack.')
+    print('Finished! ')
+    print(f'There were {len(failures)} failures (/{len(questionnaires)})')
+    print('If some failed, run the script again (possibly in manual mode) or message Nicholas Waslander for assistance.')
+    print('To mark a questionnaire not to be completed by the bot, react :x: to it on slack.')
+
+    print()
+    if 'y' not in input('Would you like to run the script again? '):
+        break
+
+    questionnaires = getqs()
+
+    print('Found', len(questionnaires),'questionnaires uncompleted.')
+
+
+
 print('Make sure to double-check there are no downloaded PDFs remaining on your device.')
 print('To see a list of the questionnaires uploaded, look at QuestionnairesUploaded.txt')

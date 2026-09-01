@@ -19,6 +19,22 @@ def pdate(date):
     year = date.year
     return f'{day} {month} {year}'
 
+provinces = [
+    "Alberta",
+    "British Columbia",
+    "Manitoba",
+    "New Brunswick",
+    "Newfoundland and Labrador",
+    "Nova Scotia",
+    "Ontario",
+    "Prince Edward Island",
+    "Quebec",
+    "Saskatchewan",
+    "Northwest Territories",
+    "Nunavut",
+    "Yukon"
+]
+
 
 #get slack data
 
@@ -82,10 +98,16 @@ def getqs():
 
 
     return questionnaires
-questionnaires = getqs()
 
+#questionnaires = getqs()
+questionnaires = []
 print('Found', len(questionnaires),'questionnaires uncompleted. Preparing...')
 
+print("Would you like to enter questionnaires into a single MYLE (old) or three different depending on province (new)? ")
+inp = input('[Enter 1 or 3] ')
+while ('1' not in inp and '3' not in inp) or ('1' in inp and '3' in inp):
+    inp = input('[Enter 1 or 3] ')
+threemyles = '3' in inp
 
 print()
 
@@ -102,12 +124,23 @@ lgin.click()
 coralwindow = driver.current_window_handle
 
 input("Please log into Coral in the popup. [enter to continue]")
-driver.switch_to.new_window('tab')
 
+driver.switch_to.new_window('tab')
 driver.get('https://coralhealth.medfarsolutions.com/html5/calendar')
 mylewindow = driver.current_window_handle
 
 input("Please log into MYLE in the popup. [enter to continue]")
+
+if threemyles:
+    driver.switch_to.new_window('tab')
+    driver.get('https://coralhealthon.medfarsolutions.com/html5/calendar')
+    mylewindowon = driver.current_window_handle
+    input("Please log into MYLE Ontario in the popup. [enter to continue]")
+    driver.switch_to.new_window('tab')
+    driver.get('https://coralhealthbc.medfarsolutions.com/html5/calendar')
+    mylewindowbc = driver.current_window_handle
+    input("Please log into MYLE BC in the popup. [enter to continue]")
+
 
 files = []
 
@@ -144,6 +177,21 @@ def uploadquestionnaire(date, memberid, responseid, manual=False):
     if failed:
         raise Exception("could not obtain name information")
     #print('name:',name, 'nurse:',nurse, 'prescriber:',prescriber)
+
+    if threemyles:
+        try:
+            province = driver.find_element(By.XPATH,"//p[normalize-space()=" +" or ".join(f"'{province}'" for province in provinces) +"]").text
+        except:
+            raise Exception('Province not found')
+        if province == 'Quebec':
+            currentmyle = mylewindow
+        elif province == 'British Columbia':
+            currentmyle = mylewindowbc
+        else:
+            currentmyle = mylewindowon
+    else:
+        currentmyle = mylewindow
+    input()
 
     #open questionnaire
     driver.get('https://coralhealth.app/members/'+memberid+'/questionnaire/responses/'+responseid)
@@ -191,7 +239,9 @@ def uploadquestionnaire(date, memberid, responseid, manual=False):
     abspath = savepage(driver, filename)
     files.append(abspath)
 
-    driver.switch_to.window(mylewindow)
+
+
+    driver.switch_to.window(currentmyle)
 
 
     driver.find_element(By.CLASS_NAME,'CalendarMenuLabel').find_element(By.TAG_NAME,'a').click()
@@ -199,7 +249,6 @@ def uploadquestionnaire(date, memberid, responseid, manual=False):
     search = driver.find_element(By.ID,'__patientSearchField')
     search.send_keys(Keys.CONTROL + "a")
     search.send_keys(Keys.DELETE)
-
     driver.implicitly_wait(0)
     try:
         WebDriverWait(driver, 10).until(

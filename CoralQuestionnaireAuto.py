@@ -28,6 +28,7 @@ provinces = [
     "Nova Scotia",
     "Ontario",
     "Prince Edward Island",
+    "Québec",
     "Quebec",
     "Saskatchewan",
     "Northwest Territories",
@@ -90,6 +91,8 @@ def getqs():
         except:
             print(message['text'])
         memid = lst[0].split('\n:bust_in_silhouette: <https://coralhealth.app/members/')[1].split('|*')[0]
+        if memid == 'd631344d-1fd8-4400-9a66-2d32096fb598':
+            continue
         responseid = lst[1].split('responses/')[1].split('|*R')[0]
         date = datetime.fromtimestamp(float(message['ts']))
         questionnaires.append((i1+1,date,memid,responseid))
@@ -99,8 +102,7 @@ def getqs():
 
     return questionnaires
 
-#questionnaires = getqs()
-questionnaires = []
+questionnaires = getqs()
 print('Found', len(questionnaires),'questionnaires uncompleted. Preparing...')
 
 print("Would you like to enter questionnaires into a single MYLE (old) or three different depending on province (new)? ")
@@ -177,12 +179,13 @@ def uploadquestionnaire(date, memberid, responseid, manual=False):
     if failed:
         raise Exception("could not obtain name information")
     #print('name:',name, 'nurse:',nurse, 'prescriber:',prescriber)
+    try:
+
+        province = driver.find_element(By.XPATH,"//p[" + " or ".join(f"normalize-space(text())='{p}'" for p in provinces) + "]").text
+    except:
+        raise Exception('Province not found')
 
     if threemyles:
-        try:
-            province = driver.find_element(By.XPATH,"//p[normalize-space()=" +" or ".join(f"'{province}'" for province in provinces) +"]").text
-        except:
-            raise Exception('Province not found')
         if province == 'Quebec':
             currentmyle = mylewindow
         elif province == 'British Columbia':
@@ -191,8 +194,6 @@ def uploadquestionnaire(date, memberid, responseid, manual=False):
             currentmyle = mylewindowon
     else:
         currentmyle = mylewindow
-    input()
-
     #open questionnaire
     driver.get('https://coralhealth.app/members/'+memberid+'/questionnaire/responses/'+responseid)
 
@@ -214,6 +215,7 @@ def uploadquestionnaire(date, memberid, responseid, manual=False):
                 'Suivi des symptômes':'ST',
                 'GAD-7':'GAD-7',
                 'GAD-7 questionnaire':'GAD-7',
+                'questionnaire GAD-7':'GAD-7',
                 'Résultats du GAD-7':'GAD-7',
                 'PHQ-9':'PHQ-9',
                 'PHQ-9 questionnaire':'PHQ-9',
@@ -308,7 +310,7 @@ def uploadquestionnaire(date, memberid, responseid, manual=False):
 
     driver.find_element(By.XPATH,'//*[@data-cy=\'document-addDoc-description\']').send_keys(mylename)
     dateelem = driver.find_element(By.ID, 'doc_create_date')
-    for _ in range(25):
+    for _ in range(35):
         dateelem.send_keys(Keys.BACKSPACE)
     #print(f'{date.strftime('%A')}, {nicedate}')
     dateelem.send_keys(f'{date.strftime('%A')}, {nicedate}')
@@ -333,20 +335,20 @@ def uploadquestionnaire(date, memberid, responseid, manual=False):
 
 
     with open('QuestionnairesUploaded.txt','a+') as file:
-        file.write(f'member:{memberid}; questionnaire:{responseid}; upload date:{datetime.today().strftime('%Y-%m-%d')}\n')
+        file.write(f'member:{memberid}; questionnaire:{responseid}; upload date:{datetime.today().strftime('%Y-%m-%d')}; province:{province}\n')
 
     response = client.reactions_add(channel=qchannel,name='white_check_mark',timestamp=date.timestamp())
     #print(response)
     if not response['ok']:
         print('Reaction adding failed.')
-    return 'success'
+    return 'success', province
 
 def gothrough(questionnaires, manual=False):
     failures = []
     for i, date, memberid, responseid in questionnaires:
         try:
-            uploadquestionnaire(date, memberid, responseid,manual)
-            print(f'✅ - #{i}, member {memberid} on {pdate(date)}')
+            result, province = uploadquestionnaire(date, memberid, responseid,manual)
+            print(f'✅ - #{i}, member {memberid} on {pdate(date)} in {province}')
         except (Exception, KeyboardInterrupt) as e:
             if isinstance(e, KeyboardInterrupt):
                 print('\n\n\nDeleting leftover files...')
